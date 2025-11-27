@@ -1,16 +1,22 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Car, Bike, Truck, ArrowRight, CheckCircle2, Loader2 } from "lucide-react"
+import { CalendarIcon, Car, Bike, Truck, ArrowRight, ArrowLeft, CheckCircle2, Loader2 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+
+type MaintenanceData = {
+  type: "date" | "km" | "not_done"
+  date?: Date
+  km?: string
+}
 
 type QuizData = {
   vehicleType: string
@@ -19,10 +25,10 @@ type QuizData = {
   isZeroKm: string
   currentKm: string
   usageType: string
-  lastOilChange: Date | undefined
-  lastTireChange: Date | undefined
-  lastBrakeChange: Date | undefined
-  lastBatteryChange: Date | undefined
+  lastOilChange: MaintenanceData
+  lastTireChange: MaintenanceData
+  lastBrakeChange: MaintenanceData
+  lastBatteryChange: MaintenanceData
 }
 
 export default function MecSentinelQuiz() {
@@ -35,26 +41,38 @@ export default function MecSentinelQuiz() {
     isZeroKm: "",
     currentKm: "",
     usageType: "",
-    lastOilChange: undefined,
-    lastTireChange: undefined,
-    lastBrakeChange: undefined,
-    lastBatteryChange: undefined,
+    lastOilChange: { type: "date" },
+    lastTireChange: { type: "date" },
+    lastBrakeChange: { type: "date" },
+    lastBatteryChange: { type: "date" },
   })
 
   const currentYear = new Date().getFullYear()
   const years = Array.from({ length: 50 }, (_, i) => currentYear - i)
 
+  // Auto-avançar da etapa 11 para 12
+  useEffect(() => {
+    if (step === 11) {
+      const timer = setTimeout(() => {
+        setStep(12)
+      }, 2500)
+      return () => clearTimeout(timer)
+    }
+  }, [step])
+
   const handleNext = () => {
     if (step === 4 && data.isZeroKm === "Sim") {
       setStep(5)
-    } else if (step === 11) {
-      setIsLoading(true)
-      setTimeout(() => {
-        setIsLoading(false)
-        setStep(12)
-      }, 2000)
     } else {
       setStep(step + 1)
+    }
+  }
+
+  const handleBack = () => {
+    if (step === 5 && data.isZeroKm === "Sim") {
+      setStep(4)
+    } else if (step > 0) {
+      setStep(step - 1)
     }
   }
 
@@ -86,6 +104,138 @@ export default function MecSentinelQuiz() {
       default:
         return <Truck className="w-8 h-8" />
     }
+  }
+
+  const canContinueMaintenanceStep = (maintenanceData: MaintenanceData) => {
+    if (maintenanceData.type === "not_done") return true
+    if (maintenanceData.type === "date" && maintenanceData.date) return true
+    if (maintenanceData.type === "km" && maintenanceData.km) return true
+    return false
+  }
+
+  const renderMaintenanceStep = (
+    stepNumber: number,
+    title: string,
+    maintenanceKey: keyof Pick<QuizData, "lastOilChange" | "lastTireChange" | "lastBrakeChange" | "lastBatteryChange">,
+    progress: number
+  ) => {
+    const maintenanceData = data[maintenanceKey]
+
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+        <Card className="w-full max-w-2xl p-8 md:p-12 shadow-2xl">
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-muted-foreground">Etapa {stepNumber} de 12</span>
+              <span className="text-sm font-medium text-blue-600">{progress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: `${progress}%` }}></div>
+            </div>
+          </div>
+
+          <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">{title}</h2>
+
+          <div className="space-y-6">
+            <RadioGroup
+              value={maintenanceData.type}
+              onValueChange={(value) => {
+                setData({
+                  ...data,
+                  [maintenanceKey]: { type: value as "date" | "km" | "not_done" }
+                })
+              }}
+            >
+              <div className="flex items-center space-x-2 p-4 border-2 rounded-xl hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors">
+                <RadioGroupItem value="date" id={`${maintenanceKey}-date`} />
+                <Label htmlFor={`${maintenanceKey}-date`} className="flex-1 cursor-pointer text-lg">
+                  Selecionar data
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2 p-4 border-2 rounded-xl hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors">
+                <RadioGroupItem value="km" id={`${maintenanceKey}-km`} />
+                <Label htmlFor={`${maintenanceKey}-km`} className="flex-1 cursor-pointer text-lg">
+                  Informar quilometragem
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2 p-4 border-2 rounded-xl hover:bg-blue-50 dark:hover:bg-gray-800 transition-colors">
+                <RadioGroupItem value="not_done" id={`${maintenanceKey}-not-done`} />
+                <Label htmlFor={`${maintenanceKey}-not-done`} className="flex-1 cursor-pointer text-lg">
+                  Não foi realizada troca
+                </Label>
+              </div>
+            </RadioGroup>
+
+            {maintenanceData.type === "date" && (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <Label className="text-base">Escolha a data</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full justify-start text-left font-normal p-6 text-lg rounded-xl"
+                    >
+                      <CalendarIcon className="mr-2 h-5 w-5" />
+                      {maintenanceData.date ? format(maintenanceData.date, "PPP", { locale: ptBR }) : "Escolha a data"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={maintenanceData.date}
+                      onSelect={(date) => setData({
+                        ...data,
+                        [maintenanceKey]: { ...maintenanceData, date }
+                      })}
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+
+            {maintenanceData.type === "km" && (
+              <div className="space-y-3 animate-in fade-in duration-300">
+                <Label htmlFor={`${maintenanceKey}-km-input`} className="text-base">Digite a quilometragem</Label>
+                <Input
+                  id={`${maintenanceKey}-km-input`}
+                  type="number"
+                  placeholder="Ex: 45000"
+                  value={maintenanceData.km || ""}
+                  onChange={(e) => setData({
+                    ...data,
+                    [maintenanceKey]: { ...maintenanceData, km: e.target.value }
+                  })}
+                  className="text-lg p-6 rounded-xl"
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-4 mt-8">
+            <Button
+              onClick={handleBack}
+              variant="outline"
+              className="flex-1 py-6 text-lg rounded-xl"
+            >
+              <ArrowLeft className="mr-2 w-5 h-5" />
+              Voltar
+            </Button>
+            <Button
+              onClick={handleNext}
+              disabled={!canContinueMaintenanceStep(maintenanceData)}
+              className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+            >
+              Continuar
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
+          </div>
+        </Card>
+      </div>
+    )
   }
 
   const renderStep = () => {
@@ -133,7 +283,7 @@ export default function MecSentinelQuiz() {
               </div>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">Qual tipo do veículo?</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {["Carro", "Moto", "Outro"].map((type) => (
                 <button
                   key={type}
@@ -147,6 +297,14 @@ export default function MecSentinelQuiz() {
                 </button>
               ))}
             </div>
+            <Button
+              onClick={handleBack}
+              variant="outline"
+              className="w-full py-6 text-lg rounded-xl"
+            >
+              <ArrowLeft className="mr-2 w-5 h-5" />
+              Voltar
+            </Button>
           </Card>
         </div>
       )
@@ -176,25 +334,35 @@ export default function MecSentinelQuiz() {
                 onChange={(e) => setData({ ...data, vehicleModel: e.target.value })}
                 className="text-lg p-6 rounded-xl"
               />
-              <Button
-                onClick={handleNext}
-                disabled={!data.vehicleModel}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                Continuar
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
+              <div className="flex gap-4">
+                <Button
+                  onClick={handleBack}
+                  variant="outline"
+                  className="flex-1 py-6 text-lg rounded-xl"
+                >
+                  <ArrowLeft className="mr-2 w-5 h-5" />
+                  Voltar
+                </Button>
+                <Button
+                  onClick={handleNext}
+                  disabled={!data.vehicleModel}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Continuar
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Button>
+              </div>
             </div>
           </Card>
         </div>
       )
     }
 
-    // Etapa 3 - Ano do Veículo
+    // Etapa 3 - Ano do Veículo (Grid de botões)
     if (step === 3) {
       return (
         <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-          <Card className="w-full max-w-2xl p-8 md:p-12 shadow-2xl">
+          <Card className="w-full max-w-4xl p-8 md:p-12 shadow-2xl">
             <div className="mb-8">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-muted-foreground">Etapa 3 de 12</span>
@@ -205,24 +373,36 @@ export default function MecSentinelQuiz() {
               </div>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">Qual ano do veículo?</h2>
-            <div className="space-y-4">
-              <Label htmlFor="year" className="text-lg">Selecione o ano</Label>
-              <Select value={data.vehicleYear} onValueChange={(value) => setData({ ...data, vehicleYear: value })}>
-                <SelectTrigger className="text-lg p-6 rounded-xl">
-                  <SelectValue placeholder="Escolha o ano" />
-                </SelectTrigger>
-                <SelectContent>
-                  {years.map((year) => (
-                    <SelectItem key={year} value={year.toString()}>
-                      {year}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="max-h-[400px] overflow-y-auto mb-6 px-2">
+              <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 gap-3">
+                {years.map((year) => (
+                  <button
+                    key={year}
+                    onClick={() => setData({ ...data, vehicleYear: year.toString() })}
+                    className={`p-4 border-2 rounded-xl font-semibold transition-all duration-300 hover:shadow-md ${
+                      data.vehicleYear === year.toString()
+                        ? "border-blue-500 bg-blue-500 text-white"
+                        : "border-gray-200 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-gray-800"
+                    }`}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-4">
+              <Button
+                onClick={handleBack}
+                variant="outline"
+                className="flex-1 py-6 text-lg rounded-xl"
+              >
+                <ArrowLeft className="mr-2 w-5 h-5" />
+                Voltar
+              </Button>
               <Button
                 onClick={handleNext}
                 disabled={!data.vehicleYear}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 Continuar
                 <ArrowRight className="ml-2 w-5 h-5" />
@@ -248,7 +428,7 @@ export default function MecSentinelQuiz() {
               </div>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">O veículo é 0KM?</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 mb-6">
               {["Sim", "Não"].map((option) => (
                 <button
                   key={option}
@@ -259,6 +439,14 @@ export default function MecSentinelQuiz() {
                 </button>
               ))}
             </div>
+            <Button
+              onClick={handleBack}
+              variant="outline"
+              className="w-full py-6 text-lg rounded-xl"
+            >
+              <ArrowLeft className="mr-2 w-5 h-5" />
+              Voltar
+            </Button>
           </Card>
         </div>
       )
@@ -289,14 +477,24 @@ export default function MecSentinelQuiz() {
                 onChange={(e) => setData({ ...data, currentKm: e.target.value })}
                 className="text-lg p-6 rounded-xl"
               />
-              <Button
-                onClick={() => setStep(5)}
-                disabled={!data.currentKm}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                Continuar
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
+              <div className="flex gap-4">
+                <Button
+                  onClick={handleBack}
+                  variant="outline"
+                  className="flex-1 py-6 text-lg rounded-xl"
+                >
+                  <ArrowLeft className="mr-2 w-5 h-5" />
+                  Voltar
+                </Button>
+                <Button
+                  onClick={() => setStep(5)}
+                  disabled={!data.currentKm}
+                  className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Continuar
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Button>
+              </div>
             </div>
           </Card>
         </div>
@@ -318,7 +516,7 @@ export default function MecSentinelQuiz() {
               </div>
             </div>
             <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">Qual tipo de uso do seu veículo?</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               {["Cidade", "Estrada", "Ambos"].map((type) => (
                 <button
                   key={type}
@@ -329,6 +527,14 @@ export default function MecSentinelQuiz() {
                 </button>
               ))}
             </div>
+            <Button
+              onClick={handleBack}
+              variant="outline"
+              className="w-full py-6 text-lg rounded-xl"
+            >
+              <ArrowLeft className="mr-2 w-5 h-5" />
+              Voltar
+            </Button>
           </Card>
         </div>
       )
@@ -336,206 +542,22 @@ export default function MecSentinelQuiz() {
 
     // Etapa 6 - Última troca de óleo
     if (step === 6) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-          <Card className="w-full max-w-2xl p-8 md:p-12 shadow-2xl">
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-muted-foreground">Etapa 6 de 12</span>
-                <span className="text-sm font-medium text-blue-600">50%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: "50%" }}></div>
-              </div>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">Qual a data da última troca de óleo do motor?</h2>
-            <div className="space-y-4">
-              <Label className="text-lg">Selecione a data</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal p-6 text-lg rounded-xl"
-                  >
-                    <CalendarIcon className="mr-2 h-5 w-5" />
-                    {data.lastOilChange ? format(data.lastOilChange, "PPP", { locale: ptBR }) : "Escolha a data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={data.lastOilChange}
-                    onSelect={(date) => setData({ ...data, lastOilChange: date })}
-                    initialFocus
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                onClick={handleNext}
-                disabled={!data.lastOilChange}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                Continuar
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )
+      return renderMaintenanceStep(6, "Qual a data ou KM da última troca de óleo do motor?", "lastOilChange", 50)
     }
 
     // Etapa 7 - Última troca de pneus
     if (step === 7) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-          <Card className="w-full max-w-2xl p-8 md:p-12 shadow-2xl">
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-muted-foreground">Etapa 7 de 12</span>
-                <span className="text-sm font-medium text-blue-600">58%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: "58%" }}></div>
-              </div>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">Qual a data da última troca dos pneus?</h2>
-            <div className="space-y-4">
-              <Label className="text-lg">Selecione a data</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal p-6 text-lg rounded-xl"
-                  >
-                    <CalendarIcon className="mr-2 h-5 w-5" />
-                    {data.lastTireChange ? format(data.lastTireChange, "PPP", { locale: ptBR }) : "Escolha a data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={data.lastTireChange}
-                    onSelect={(date) => setData({ ...data, lastTireChange: date })}
-                    initialFocus
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                onClick={handleNext}
-                disabled={!data.lastTireChange}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                Continuar
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )
+      return renderMaintenanceStep(7, "Qual a data ou KM da última troca dos pneus?", "lastTireChange", 58)
     }
 
     // Etapa 8 - Última troca de pastilhas de freio
     if (step === 8) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-          <Card className="w-full max-w-2xl p-8 md:p-12 shadow-2xl">
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-muted-foreground">Etapa 8 de 12</span>
-                <span className="text-sm font-medium text-blue-600">67%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: "67%" }}></div>
-              </div>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">Qual a data da última troca das pastilhas de freio?</h2>
-            <div className="space-y-4">
-              <Label className="text-lg">Selecione a data</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal p-6 text-lg rounded-xl"
-                  >
-                    <CalendarIcon className="mr-2 h-5 w-5" />
-                    {data.lastBrakeChange ? format(data.lastBrakeChange, "PPP", { locale: ptBR }) : "Escolha a data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={data.lastBrakeChange}
-                    onSelect={(date) => setData({ ...data, lastBrakeChange: date })}
-                    initialFocus
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                onClick={handleNext}
-                disabled={!data.lastBrakeChange}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                Continuar
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )
+      return renderMaintenanceStep(8, "Qual a data ou KM da última troca das pastilhas de freio?", "lastBrakeChange", 67)
     }
 
     // Etapa 9 - Última troca de bateria
     if (step === 9) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-          <Card className="w-full max-w-2xl p-8 md:p-12 shadow-2xl">
-            <div className="mb-8">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium text-muted-foreground">Etapa 9 de 12</span>
-                <span className="text-sm font-medium text-blue-600">75%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full transition-all duration-500" style={{ width: "75%" }}></div>
-              </div>
-            </div>
-            <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">Quando foi a última troca da bateria?</h2>
-            <div className="space-y-4">
-              <Label className="text-lg">Selecione a data</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal p-6 text-lg rounded-xl"
-                  >
-                    <CalendarIcon className="mr-2 h-5 w-5" />
-                    {data.lastBatteryChange ? format(data.lastBatteryChange, "PPP", { locale: ptBR }) : "Escolha a data"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={data.lastBatteryChange}
-                    onSelect={(date) => setData({ ...data, lastBatteryChange: date })}
-                    initialFocus
-                    locale={ptBR}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Button
-                onClick={handleNext}
-                disabled={!data.lastBatteryChange}
-                className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                Continuar
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )
+      return renderMaintenanceStep(9, "Quando foi a última troca da bateria?", "lastBatteryChange", 75)
     }
 
     // Etapa 10 - Recapitulando
@@ -561,19 +583,29 @@ export default function MecSentinelQuiz() {
                 Com base nas informações fornecidas, poderemos monitorar a saúde do seu veículo e notificar necessidade de manutenção.
               </p>
             </div>
-            <Button
-              onClick={handleNext}
-              className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
-            >
-              Continuar
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
+            <div className="flex gap-4">
+              <Button
+                onClick={handleBack}
+                variant="outline"
+                className="flex-1 py-6 text-lg rounded-xl"
+              >
+                <ArrowLeft className="mr-2 w-5 h-5" />
+                Voltar
+              </Button>
+              <Button
+                onClick={handleNext}
+                className="flex-1 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white py-6 text-lg rounded-xl shadow-lg hover:shadow-xl transition-all duration-300"
+              >
+                Continuar
+                <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </div>
           </Card>
         </div>
       )
     }
 
-    // Etapa 11 - Loading
+    // Etapa 11 - Loading (auto-avança para etapa 12)
     if (step === 11) {
       return (
         <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
