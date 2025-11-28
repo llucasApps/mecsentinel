@@ -49,6 +49,15 @@ export default function LoginPage() {
           })
         }
 
+        // Sincronizar sessão com o servidor para o middleware reconhecer
+        if (data.session) {
+          await fetch('/auth/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event: 'SIGNED_IN', session: data.session })
+          })
+        }
+
         // Redirecionar para a página principal (quiz)
         router.push("/")
       }

@@ -67,13 +67,16 @@ export async function middleware(req: NextRequest) {
     data: { session },
   } = await supabase.auth.getSession()
 
-  // Se não estiver autenticado e não estiver na página de login, redirecionar
-  if (!session && req.nextUrl.pathname !== '/login') {
+  const pathname = req.nextUrl.pathname
+  const isAuthEndpoint = pathname.startsWith('/auth')
+
+  // Se não estiver autenticado e não estiver na página de login ou endpoint de auth, redirecionar
+  if (!session && pathname !== '/login' && !isAuthEndpoint) {
     return NextResponse.redirect(new URL('/login', req.url))
   }
 
   // Se estiver autenticado e tentar acessar /login, redirecionar para home
-  if (session && req.nextUrl.pathname === '/login') {
+  if (session && pathname === '/login') {
     return NextResponse.redirect(new URL('/', req.url))
   }
 
